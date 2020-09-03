@@ -1,11 +1,11 @@
 ---
-- name: Install Java.
-  become: yes
-  apt:
-    name: "{{ riemann_jvm_pkg }}"
-    state: present
-    update_cache: yes
-    cache_valid_time: 3600
+#- name: Install Java.
+#  become: yes
+#  apt:
+#    name: "{{ riemann_jvm_pkg }}"
+#    state: present
+#    update_cache: yes
+#    cache_valid_time: 3600
 
 - name: Download Riemann deb package.
   become: yes
@@ -28,6 +28,7 @@
 - name: Read checksum for Riemann deb package.
   stat:
     path: "{{ riemann_deb_file_fullpath }}"
+    checksum_algorithm: md5
   register: riemann_download_checksum_result
 
 - name: Validate checksum for deb package.
@@ -35,11 +36,11 @@
   register: riemann_checksum_result
   changed_when: false
   failed_when: riemann_checksum_result.stdout !=
-               "{{ riemann_download_checksum_result.stat.md5 }}  {{ riemann_deb_file_fullpath|basename }}"
+               "{{ riemann_download_checksum_result.stat.checksum }}  {{ riemann_deb_file_fullpath|basename }}"
 
 - name: Install Riemann deb package.
   become: yes
   apt:
     deb: "{{ riemann_deb_file_fullpath }}"
-    state: installed
+    state: present
   notify: restart riemann
