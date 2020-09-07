@@ -9,12 +9,21 @@
 ; Import custom functions, e.g. for Slack alerts
 (include "/etc/riemann/conf.d")
 
+(logging/init {:file "/var/log/riemann/riemann.log"})
+
+(def sendmail (mailer {:host "{{ riemann_email_host }}"
+                    :ssl "{{ riemann_email_ssl }}"
+                    :user "{{ riemann_email_user }}"
+                    :pass "{{ riemann_email_pass }}"
+                    :from "{{ riemann_email_from }}"}))
+
+
+(def email (sendmail "{{ riemann_email_receiver }}"))
+
 (let [index (index)]
   ; Inbound events will be passed to these streams:
   (streams
     (default :ttl 60
-      ; Index all events immediately.
-      index
       {% if riemann_debug_logging -%}
       prn
       #(info %)
@@ -24,6 +33,17 @@
       ; Send alerts to Slack
       (where (tagged "{{ riemann_slack_tag }}") slacker)
       {% endif %}
+(where (state nil)
+  (split
+    (tagged "exception") (rate 20 (where (> 20 metric) (with {:state "critical" :description "more than 1 exception per second"} reinject)))
+    (< 0.9  (/ metric maximum)) (with :state "critical" reinject)
+    (< 0.75 (/ metric maximum)) (with :state "warning" reinject)
+    (with :state "ok" reinject))
+  (else
+    (by [:host :service]
+      (where (host #"^dotnet") 
+	    index
+        (changed :state {:init "ok"} prn #(info %) email)))))
 
       ; Log expired events.
       (expired

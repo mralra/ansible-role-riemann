@@ -71,6 +71,25 @@ riemann_optional_addutils: []
 
 # Key/values that riemann can import and utilize
 riemann_alerts_auth_map: {}
+
+
+# Additionally added Configuration
+
+# SMTP Host for sending emails
+riemann_email_host: "smtp.google.com"
+# use ssl for email sending
+riemann_email_ssl: true
+# authentication user
+riemann_email_user: "foo@example.com"
+# authentication password
+riemann_email_pass: "VerySecurePassword"
+# from-header for mail
+riemann_email_from: "foo@example.com"
+
+# receiver for notifications
+riemann_email_receiver: "bar@example.com"
+
+
 ```
 
 Example Playbook
