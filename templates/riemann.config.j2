@@ -1,7 +1,7 @@
 ; Listen only on 5555 for TCP logs. Riemann docs strongly suggest forcing TCP over UDP.
 ; `ws-server` will need to be explicitly enabled if using riemann-dash.
-(let [host "127.0.0.1"]
-  (tcp-server {:host host :port 5555}))
+(tcp-server :host "0.0.0.0")
+(ws-server :host "0.0.0.0")
 
 ; Expire old events from the index every 5 seconds.
 (periodically-expire 5)
@@ -21,31 +21,25 @@
 (def email (sendmail "{{ riemann_email_receiver }}"))
 
 (let [index (index)]
-  ; Inbound events will be passed to these streams:
   (streams
-    (default :ttl 60
+    (default {:ttl 60 :maximum 1.0}
       {% if riemann_debug_logging -%}
       prn
       #(info %)
       {% endif %}
 
-      {% if 'account' in riemann_slack_credentials and 'token' in riemann_slack_credentials -%}
-      ; Send alerts to Slack
-      (where (tagged "{{ riemann_slack_tag }}") slacker)
-      {% endif %}
-(where (state nil)
-  (split
-    (tagged "exception") (rate 20 (where (> 20 metric) (with {:state "critical" :description "more than 1 exception per second"} reinject)))
-    (< 0.9  (/ metric maximum)) (with :state "critical" reinject)
-    (< 0.75 (/ metric maximum)) (with :state "warning" reinject)
-    (with :state "ok" reinject))
-  (else
-    (by [:host :service]
-      (where (host #"^dotnet") 
-	    index
-        (changed :state {:init "ok"} prn #(info %) email)))))
-
-      ; Log expired events.
-      (expired
-        (fn [event] (info "expired" event))))))
+      (adjust [:maximum #(Double/valueOf %)]
+        (where (state nil)
+          (split
+            (tagged "exception") (rate 20 (where (> 20 metric) (with {:state "critical" :description "more than 1 exception per second"} reinject)))
+            (< 0.9  (/ metric (:maximum event))) (with :state "critical" reinject)
+            (< 0.75 (/ metric (:maximum event))) (with :state "warning" reinject)
+            (with :state "ok" reinject))
+          (else
+            (by [:host :service]
+              (where (host #"^dotnet")
+                     index
+                     (changed :state {:init "ok"} prn #(info %) email)))))
+        (expired
+          (fn [event] (info "expired" event)))))))
 
